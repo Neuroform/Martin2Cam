@@ -14,7 +14,7 @@ platform :ios do
 
     cert(api_key: key, development: false, generate_apple_certs: true)
 
-    profile_path = sigh(
+    sigh(
       api_key: key,
       app_identifier: BUNDLE_ID,
       team_id: TEAM_ID,
@@ -22,9 +22,7 @@ platform :ios do
       adhoc: false
     )
 
-    profile_xml = sh("security cms -D -i '#{profile_path}'")
-    require "plist"
-    profile_name = Plist.parse_xml(profile_xml).fetch("Name")
+    profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
 
     sh("xcodegen generate")
 
