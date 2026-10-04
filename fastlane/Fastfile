@@ -1,0 +1,60 @@
+default_platform(:ios)
+
+BUNDLE_ID = "at.martin.Martin2Cam"
+TEAM_ID = "R67UL27BLB"
+
+platform :ios do
+  lane :testflight do
+    key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_PRIVATE_KEY"],
+      in_house: false
+    )
+
+    cert(api_key: key, development: false, generate_apple_certs: true)
+
+    profile_path = sigh(
+      api_key: key,
+      app_identifier: BUNDLE_ID,
+      team_id: TEAM_ID,
+      force: true,
+      adhoc: false
+    )
+
+    profile_xml = sh("security cms -D -i '#{profile_path}'")
+    require "plist"
+    profile_name = Plist.parse_xml(profile_xml).fetch("Name")
+
+    sh("xcodegen generate")
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Martin2Cam.xcodeproj",
+      team_id: TEAM_ID,
+      bundle_identifier: BUNDLE_ID,
+      profile_name: profile_name,
+      code_sign_identity: "Apple Distribution"
+    )
+
+    build_app(
+      project: "Martin2Cam.xcodeproj",
+      scheme: "Martin2Cam",
+      clean: true,
+      export_method: "app-store",
+      output_directory: "artifacts",
+      output_name: "Martin2Cam.ipa",
+      xcargs: "CURRENT_PROJECT_VERSION=#{ENV.fetch('GITHUB_RUN_NUMBER', '1')} MARKETING_VERSION=1.0",
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: { BUNDLE_ID => profile_name }
+      }
+    )
+
+    upload_to_testflight(
+      api_key: key,
+      ipa: "artifacts/Martin2Cam.ipa",
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
