@@ -17,6 +17,10 @@ targets:
         PRODUCT_NAME: Martin2Cam
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Martin2Cam
+        PRODUCT_NAME: Martin2Cam
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "2"
         INFOPLIST_KEY_CFBundleDisplayName: Martin2Cam
         INFOPLIST_KEY_NSCameraUsageDescription: "Martin2Cam benötigt Kamerazugriff für die angeschlossenen USB-Dokumentenkameras."
