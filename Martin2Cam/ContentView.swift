@@ -7,13 +7,19 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 1) {
-                pane(manager.left).frame(width: geo.size.width / 2)
-                pane(manager.right).frame(width: geo.size.width / 2)
+                pane(manager.left).frame(width: (geo.size.width - 1) / 2)
+                pane(manager.right).frame(width: (geo.size.width - 1) / 2)
             }
             .background(.black)
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
+        .alert("Martin2Cam", isPresented: Binding(
+            get: { manager.errorMessage != nil },
+            set: { if !$0 { manager.errorMessage = nil } }
+        )) { Button("OK", role: .cancel) {} } message: {
+            Text(manager.errorMessage ?? "")
+        }
     }
 
     @ViewBuilder
@@ -21,12 +27,11 @@ struct ContentView: View {
         ZStack(alignment: .bottom) {
             CameraPreview(device: model.device, zoom: model.zoom, rotation: model.rotation,
                           brightness: model.brightness, contrast: model.contrast)
-                .background(.black)
-                .clipped()
+                .background(.black).clipped()
                 .onTapGesture { model.showControls.toggle() }
 
             if model.device == nil {
-                VStack {
+                VStack(spacing: 12) {
                     Text("USB-Kamera nicht ausgewählt")
                     Button("Neu suchen") { manager.refresh() }
                 }
@@ -50,11 +55,7 @@ struct ContentView: View {
                 Text("Keine").tag("")
                 ForEach(manager.devices, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
             }
-            HStack {
-                Text("Zoom")
-                Slider(value: $model.zoom, in: 1...4)
-                Button("↻") { model.rotation = (model.rotation + 90) % 360 }
-            }
+            HStack { Text("Zoom"); Slider(value: $model.zoom, in: 1...4); Button("↻") { model.rotation = (model.rotation + 90) % 360 } }
             HStack { Text("Helligkeit"); Slider(value: $model.brightness, in: -1...1) }
             HStack { Text("Kontrast"); Slider(value: $model.contrast, in: 0.5...2) }
             HStack {
@@ -63,7 +64,6 @@ struct ContentView: View {
                 Slider(value: $model.manualFocus, in: 0...1)
                     .onChange(of: model.manualFocus) { _, _ in manager.setFocus(model, auto: false) }
             }
-        }
-        .font(.caption)
+        }.font(.caption)
     }
 }
