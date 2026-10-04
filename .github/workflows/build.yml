@@ -17,10 +17,28 @@ jobs:
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
-          xcodebuild -project Martin2Cam.xcodeproj -scheme Martin2Cam -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build | tee xcodebuild.log
-      - name: Upload build log
+          xcodebuild -project Martin2Cam.xcodeproj -scheme Martin2Cam -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO -derivedDataPath DerivedData build | tee xcodebuild.log
+      - name: Package simulator app
+        if: success()
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent DerivedData/Build/Products/Debug-iphonesimulator/Martin2Cam.app Martin2Cam-simulator.zip
+      - name: Build unsigned iPadOS device app
+        run: |
+          set -o pipefail
+          xcodebuild -project Martin2Cam.xcodeproj -scheme Martin2Cam -sdk iphoneos -configuration Debug CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO -derivedDataPath DeviceDerivedData build | tee xcodebuild-device.log
+      - name: Package unsigned device app
+        if: success()
+        run: |
+          mkdir -p Payload
+          cp -R DeviceDerivedData/Build/Products/Debug-iphoneos/Martin2Cam.app Payload/
+          zip -qry Martin2Cam-unsigned.ipa Payload
+      - name: Upload Martin2Cam builds
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
-          path: xcodebuild.log
+          name: Martin2Cam-builds
+          path: |
+            Martin2Cam-simulator.zip
+            Martin2Cam-unsigned.ipa
+            xcodebuild.log
+            xcodebuild-device.log
