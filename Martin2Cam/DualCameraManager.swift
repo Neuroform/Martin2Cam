@@ -19,11 +19,9 @@ final class DualCameraManager: ObservableObject {
     }
 
     func refresh() {
-        let session = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.external],
-            mediaType: .video,
-            position: .unspecified
-        )
+        let session = AVCaptureDevice.DiscoverySession(deviceTypes: [.external],
+                                                       mediaType: .video,
+                                                       position: .unspecified)
         devices = session.devices
         if left.device == nil { left.device = devices.first }
         if right.device == nil { right.device = devices.dropFirst().first }
@@ -34,10 +32,18 @@ final class DualCameraManager: ObservableObject {
         do {
             try d.lockForConfiguration()
             defer { d.unlockForConfiguration() }
-            if auto, d.isFocusModeSupported(.continuousAutoFocus) {
-                d.focusMode = .continuousAutoFocus
-            } else if !auto, d.isFocusModeSupported(.locked) {
+            if auto {
+                if d.isFocusModeSupported(.continuousAutoFocus) {
+                    d.focusMode = .continuousAutoFocus
+                } else if d.isFocusModeSupported(.autoFocus) {
+                    d.focusMode = .autoFocus
+                } else {
+                    errorMessage = "\(d.localizedName): Autofokus wird von iPadOS nicht angeboten."
+                }
+            } else if d.isFocusModeSupported(.locked) {
                 d.setFocusModeLocked(lensPosition: model.manualFocus)
+            } else {
+                errorMessage = "\(d.localizedName): Manueller Fokus wird von iPadOS nicht angeboten."
             }
         } catch { errorMessage = error.localizedDescription }
     }
