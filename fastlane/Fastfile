@@ -5,6 +5,7 @@ TEAM_ID = "R67UL27BLB"
 
 platform :ios do
   lane :testflight do
+    root = File.expand_path("..", __dir__)
     key = app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
@@ -24,11 +25,10 @@ platform :ios do
 
     profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
 
-    sh("xcodegen generate")
 
     update_code_signing_settings(
       use_automatic_signing: false,
-      path: "Martin2Cam.xcodeproj",
+      path: File.join(root, "Martin2Cam.xcodeproj"),
       team_id: TEAM_ID,
       bundle_identifier: BUNDLE_ID,
       profile_name: profile_name,
@@ -36,11 +36,11 @@ platform :ios do
     )
 
     build_app(
-      project: "Martin2Cam.xcodeproj",
+      project: File.join(root, "Martin2Cam.xcodeproj"),
       scheme: "Martin2Cam",
       clean: true,
       export_method: "app-store",
-      output_directory: "artifacts",
+      output_directory: File.join(root, "artifacts"),
       output_name: "Martin2Cam.ipa",
       xcargs: "CURRENT_PROJECT_VERSION=#{ENV.fetch('GITHUB_RUN_NUMBER', '1')} MARKETING_VERSION=1.0",
       export_options: {
@@ -51,7 +51,7 @@ platform :ios do
 
     upload_to_testflight(
       api_key: key,
-      ipa: "artifacts/Martin2Cam.ipa",
+      ipa: File.join(root, "artifacts", "Martin2Cam.ipa"),
       skip_waiting_for_build_processing: true
     )
   end
