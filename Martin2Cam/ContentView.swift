@@ -55,13 +55,13 @@ struct ContentView: View {
                 Text("Keine").tag("")
                 ForEach(manager.devices, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
             }
-            HStack { Text("Zoom"); Slider(value: $model.zoom, in: 1...4); Button("↻") { model.rotation = (model.rotation + 90) % 360 } }
-            HStack { Text("Helligkeit"); Slider(value: $model.brightness, in: -1...1) }
-            HStack { Text("Kontrast"); Slider(value: $model.contrast, in: 0.5...2) }
+            HStack { Text("Zoom"); Slider(value: Binding(get: { model.zoom }, set: { model.zoom = $0 }), in: 1...4); Button("↻") { model.rotation = (model.rotation + 90) % 360 } }
+            HStack { Text("Helligkeit"); Slider(value: Binding(get: { model.brightness }, set: { model.brightness = $0 }), in: -1...1) }
+            HStack { Text("Kontrast"); Slider(value: Binding(get: { model.contrast }, set: { model.contrast = $0 }), in: 0.5...2) }
             HStack {
                 Button("AF") { manager.setFocus(model, auto: true) }
                 Button("MF") { manager.setFocus(model, auto: false) }
-                Slider(value: $model.manualFocus, in: 0...1)
+                Slider(value: Binding(get: { model.manualFocus }, set: { model.manualFocus = $0 }), in: 0...1)
                     .onChange(of: model.manualFocus) { _, _ in manager.setFocus(model, auto: false) }
             }
         }.font(.caption)
