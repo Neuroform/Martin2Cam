@@ -1,0 +1,48 @@
+name: TestFlight Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Install Ruby dependencies
+        run: bundle install
+
+      - name: Validate App Store Connect secrets
+        env:
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          test -n "$APP_STORE_CONNECT_ISSUER_ID"
+          test -n "$APP_STORE_CONNECT_KEY_ID"
+          test -n "$APP_STORE_CONNECT_PRIVATE_KEY"
+          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | openssl pkcs8 -nocrypt >/dev/null
+
+      - name: Build signed IPA and upload to TestFlight
+        env:
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: bundle exec fastlane ios testflight
+
+      - name: Upload signed IPA and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Martin2Cam-TestFlight-build
+          path: |
+            artifacts
+            fastlane/report.xml
+            ~/Library/Logs/gym
