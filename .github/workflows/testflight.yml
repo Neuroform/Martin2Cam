@@ -32,6 +32,40 @@ jobs:
           test -n "$APP_STORE_CONNECT_PRIVATE_KEY"
           printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | openssl pkcs8 -nocrypt >/dev/null
 
+      - name: Remove orphaned CI distribution certificate
+        env:
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          bundle exec ruby <<'RUBY'
+          require "jwt"
+          require "openssl"
+          require "net/http"
+          require "json"
+
+          key = OpenSSL::PKey::EC.new(ENV.fetch("APP_STORE_CONNECT_PRIVATE_KEY"))
+          now = Time.now.to_i
+          payload = {
+            iss: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+            iat: now,
+            exp: now + 600,
+            aud: "appstoreconnect-v1"
+          }
+          token = JWT.encode(payload, key, "ES256", { kid: ENV.fetch("APP_STORE_CONNECT_KEY_ID"), typ: "JWT" })
+
+          uri = URI("https://api.appstoreconnect.apple.com/v1/certificates/3RDFGJM5FP")
+          req = Net::HTTP::Delete.new(uri)
+          req["Authorization"] = "Bearer #{token}"
+          res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
+
+          unless ["204", "404"].include?(res.code)
+            warn "Certificate cleanup failed: HTTP #{res.code} #{res.body}"
+            exit 1
+          end
+          puts res.code == "204" ? "Removed orphaned certificate 3RDFGJM5FP." : "Orphaned certificate already absent."
+          RUBY
+
       - name: Build signed IPA and upload to TestFlight
         env:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
