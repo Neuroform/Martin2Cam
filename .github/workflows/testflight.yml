@@ -54,7 +54,8 @@ jobs:
           }
           token = JWT.encode(payload, key, "ES256", { kid: ENV.fetch("APP_STORE_CONNECT_KEY_ID"), typ: "JWT" })
 
-          uri = URI("https://api.appstoreconnect.apple.com/v1/certificates/3RDFGJM5FP")
+          cert_id = ENV.fetch("ORPHAN_CERT_ID", "C8BC5JP588")
+          uri = URI("https://api.appstoreconnect.apple.com/v1/certificates/#{cert_id}")
           req = Net::HTTP::Delete.new(uri)
           req["Authorization"] = "Bearer #{token}"
           res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
@@ -63,8 +64,11 @@ jobs:
             warn "Certificate cleanup failed: HTTP #{res.code} #{res.body}"
             exit 1
           end
-          puts res.code == "204" ? "Removed orphaned certificate 3RDFGJM5FP." : "Orphaned certificate already absent."
+          puts res.code == "204" ? "Removed orphaned certificate #{cert_id}." : "Orphaned certificate already absent."
           RUBY
+
+      - name: Generate Xcode project
+        run: xcodegen generate
 
       - name: Build signed IPA and upload to TestFlight
         env:
