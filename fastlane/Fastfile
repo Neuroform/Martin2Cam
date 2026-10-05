@@ -6,81 +6,73 @@ TEAM_ID = "R67UL27BLB"
 platform :ios do
   lane :testflight do
     root = File.expand_path("..", __dir__)
-    keychain_name = "Martin2Cam-CI"
-    keychain_password = ENV.fetch("MARTIN2CAM_CI_KEYCHAIN_PASSWORD", "Martin2Cam-CI-GitHub-Actions")
+    artifacts = File.join(root, "artifacts")
+    archive = File.join(artifacts, "Martin2Cam.xcarchive")
+    export_path = File.join(artifacts, "export")
+    auth_key_path = File.join(ENV.fetch("RUNNER_TEMP", "/tmp"), "AuthKey_#{ENV.fetch('APP_STORE_CONNECT_KEY_ID')}.p8")
+    export_options_path = File.join(ENV.fetch("RUNNER_TEMP", "/tmp"), "ExportOptions.plist")
 
-    key = app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-      key_content: ENV["APP_STORE_CONNECT_PRIVATE_KEY"],
+    FileUtils.mkdir_p(artifacts)
+    File.write(auth_key_path, ENV.fetch("APP_STORE_CONNECT_PRIVATE_KEY"))
+    File.chmod(0600, auth_key_path)
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_PRIVATE_KEY"),
       in_house: false
     )
 
-    delete_keychain(name: keychain_name) if File.exist?(File.expand_path("~/Library/Keychains/#{keychain_name}-db"))
-    create_keychain(
-      name: keychain_name,
-      password: keychain_password,
-      default_keychain: true,
-      unlock: true,
-      timeout: 0,
-      lock_when_sleeps: false
+    sh(
+      "xcodebuild",
+      "-project", File.join(root, "Martin2Cam.xcodeproj"),
+      "-scheme", "Martin2Cam",
+      "-configuration", "Release",
+      "-destination", "generic/platform=iOS",
+      "-archivePath", archive,
+      "CURRENT_PROJECT_VERSION=#{ENV.fetch('GITHUB_RUN_NUMBER', '1')}",
+      "MARKETING_VERSION=1.0",
+      "CODE_SIGNING_ALLOWED=NO",
+      "CODE_SIGNING_REQUIRED=NO",
+      "clean", "archive"
     )
 
-    keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+    File.write(export_options_path, <<~PLIST)
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>method</key>
+        <string>app-store-connect</string>
+        <key>signingStyle</key>
+        <string>automatic</string>
+        <key>teamID</key>
+        <string>#{TEAM_ID}</string>
+      </dict>
+      </plist>
+    PLIST
 
-    cert(
-      api_key: key,
-      development: false,
-      generate_apple_certs: true,
-      keychain_path: keychain_path,
-      keychain_password: keychain_password
+    sh(
+      "xcodebuild",
+      "-exportArchive",
+      "-archivePath", archive,
+      "-exportPath", export_path,
+      "-exportOptionsPlist", export_options_path,
+      "-allowProvisioningUpdates",
+      "-authenticationKeyPath", auth_key_path,
+      "-authenticationKeyID", ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      "-authenticationKeyIssuerID", ENV.fetch("APP_STORE_CONNECT_ISSUER_ID")
     )
 
-    sh("security unlock-keychain -p '#{keychain_password}' '#{keychain_path}'")
-    sh("security default-keychain -d user -s '#{keychain_path}'")
-    sh("security list-keychains -d user -s '#{keychain_path}'")
-    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '#{keychain_password}' '#{keychain_path}'")
-    sh("security find-identity -v -p codesigning '#{keychain_path}'")
-
-    sigh(
-      api_key: key,
-      app_identifier: BUNDLE_ID,
-      team_id: TEAM_ID,
-      force: true,
-      adhoc: false
-    )
-
-    profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
-
-    update_code_signing_settings(
-      use_automatic_signing: false,
-      path: File.join(root, "Martin2Cam.xcodeproj"),
-      team_id: TEAM_ID,
-      bundle_identifier: BUNDLE_ID,
-      profile_name: profile_name,
-      code_sign_identity: "Apple Distribution"
-    )
-
-    build_app(
-      project: File.join(root, "Martin2Cam.xcodeproj"),
-      scheme: "Martin2Cam",
-      clean: true,
-      export_method: "app-store",
-      output_directory: File.join(root, "artifacts"),
-      output_name: "Martin2Cam.ipa",
-      xcargs: "CURRENT_PROJECT_VERSION=#{ENV.fetch('GITHUB_RUN_NUMBER', '1')} MARKETING_VERSION=1.0",
-      export_options: {
-        signingStyle: "manual",
-        provisioningProfiles: { BUNDLE_ID => profile_name }
-      }
-    )
+    ipa = Dir[File.join(export_path, "*.ipa")].first
+    UI.user_error!("Cloud signing completed without producing an IPA") unless ipa
 
     upload_to_testflight(
-      api_key: key,
-      ipa: File.join(root, "artifacts", "Martin2Cam.ipa"),
+      api_key: api_key,
+      ipa: ipa,
       skip_waiting_for_build_processing: true
     )
   ensure
-    delete_keychain(name: keychain_name) if keychain_name
+    File.delete(auth_key_path) if defined?(auth_key_path) && File.exist?(auth_key_path)
   end
 end
