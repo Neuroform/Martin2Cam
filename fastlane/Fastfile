@@ -6,6 +6,9 @@ TEAM_ID = "R67UL27BLB"
 platform :ios do
   lane :testflight do
     root = File.expand_path("..", __dir__)
+    keychain_name = "Martin2Cam-CI"
+    keychain_password = ENV.fetch("MARTIN2CAM_CI_KEYCHAIN_PASSWORD", "Martin2Cam-CI-GitHub-Actions")
+
     key = app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
@@ -13,7 +16,31 @@ platform :ios do
       in_house: false
     )
 
-    cert(api_key: key, development: false, generate_apple_certs: true)
+    delete_keychain(name: keychain_name) if File.exist?(File.expand_path("~/Library/Keychains/#{keychain_name}-db"))
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 0,
+      lock_when_sleeps: false
+    )
+
+    keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+
+    cert(
+      api_key: key,
+      development: false,
+      generate_apple_certs: true,
+      keychain_path: keychain_path,
+      keychain_password: keychain_password
+    )
+
+    sh("security unlock-keychain -p '#{keychain_password}' '#{keychain_path}'")
+    sh("security default-keychain -d user -s '#{keychain_path}'")
+    sh("security list-keychains -d user -s '#{keychain_path}'")
+    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '#{keychain_password}' '#{keychain_path}'")
+    sh("security find-identity -v -p codesigning '#{keychain_path}'")
 
     sigh(
       api_key: key,
@@ -24,7 +51,6 @@ platform :ios do
     )
 
     profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
-
 
     update_code_signing_settings(
       use_automatic_signing: false,
@@ -54,5 +80,7 @@ platform :ios do
       ipa: File.join(root, "artifacts", "Martin2Cam.ipa"),
       skip_waiting_for_build_processing: true
     )
+  ensure
+    delete_keychain(name: keychain_name) if keychain_name
   end
 end
